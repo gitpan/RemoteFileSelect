@@ -1,5 +1,5 @@
 package Tk::RemoteFileSelect;
-my $RCSRevKey = '$Revision: 0.54 $';
+my $RCSRevKey = '$Revision: 0.55 $';
 $RCSRevKey =~ /Revision: (.*?) /;
 $VERSION=$1;
 use vars qw($VERSION @EXPORT_OK);
@@ -17,10 +17,22 @@ use vars qw($VERSION @EXPORT_OK);
 
 =head1 DESCRIPTION
 
-  If the Net::FTP module is present, RemoteFileSelect will 
-  activate an additional "Host" button on the FileSelect
-  widget, where you can enter the host name, and your user
-  id and password, and select files on the remote host.
+  A RemoteFileSelect contains two listboxes that display
+  subdirectories and files, a directory entry and a file name
+  entry, and buttons for each operation, which are labeled
+  with Alt-key accelerators.
+
+  When entering a file name, the RemoteFileSelect verifies 
+  whether the file already exists.  If a file is selected
+  in the listbox, the RemoteFileSelect returns that file's
+  name when the user clicks the 'Accept' button, presses
+  Enter after typing a name in the file entry, or double
+  clicking on a selection in the file list box.
+
+  Additionally, if the Net::FTP module is installed, RemoteFileSelect
+  will activate an additional "Host" button on the FileSelect widget,
+  where you can enter the host name, and your user id and password,
+  and select files on the remote host.
 
   If a file name is selected on the local host, then 
   the RemoteFileSelect widget returns the path to the 
@@ -33,11 +45,11 @@ use vars qw($VERSION @EXPORT_OK);
 
   RemoteFileSelect requires the Net::FTP module to be 
   installed.  If it cannot find and load Net::FTP, the
-  RemoteFileSelect widget behaves like a standard 
+  RemoteFileSelect widget behaves like a standard
   FileSelect widget, and the "Host" button is grayed out.
 
   RemoteFileSelect.pm was developed with the Net::FTP
-  module distributed with libnet-1.0703, from 
+  module distributed with libnet-1.0703, from
   http://www.cpan.org/.
 
   All other operations function as in a FileSelect widget.
@@ -47,7 +59,7 @@ use vars qw($VERSION @EXPORT_OK);
 
   First development version.
 
-  $Revision: 0.54 $
+  $Revision: 0.55 $
 
 =cut
 
@@ -268,7 +280,7 @@ sub Populate {
     require Cwd;
 
     my $havenet;
-    $havenet = 1 if &requirecond( "Net::FTP" ); 
+    $havenet = 1 if &requirecond( "Net::FTP" );
 
     $w->SUPER::Populate($args);
     $w->protocol('WM_DELETE_WINDOW' => ['Cancel', $w ]);
@@ -282,7 +294,8 @@ sub Populate {
         -textvariable  => \$w->{DirectoryString},
         -labelVariable => \$w->{Configure}{-dirlabel},
     );
-    $e->pack(-side => 'top', -expand => 0, -fill => 'x');
+    $e->pack(-side => 'top', -expand => 0, -pady => 5, -padx => 5,
+	     -fill => 'x');
     $e->bind('<Return>' => [$w => 'validateDir', Ev(['get'])]);
 
     # Create file entry, place at the bottom.
@@ -291,7 +304,8 @@ sub Populate {
         -textvariable => \$w->{Configure}{-initialfile},
         -labelVariable => \$w->{Configure}{-filelabel},
     );
-    $e->pack(-side => 'bottom', -expand => 0, -fill => 'x');
+    $e->pack(-side => 'bottom', -expand => 0, -pady => 5, -padx => 5,
+	     -fill => 'x');
     $e->bind('<Return>' => [$w => 'validateFile', Ev(['get'])]);
 
     # Create directory scrollbox, place at the left-middle.
@@ -310,26 +324,36 @@ sub Populate {
     my $f = $w->Frame();
     $f->pack(-side => 'right', -fill => 'y', -expand => 0);
     $b = $f->Button('-textvariable' => \$w->{'Configure'}{'-acceptlabel'},
+		    -underline => 0,
 		     -command => [ 'Accept', $w ],
     );
+    $w -> bind( '<Alt-a>', [$w => 'Accept', Ev(['getSelected'])]);
 
     $b->pack(-side => 'top', -fill => 'x', -expand => 1);
     $b = $f->Button('-textvariable' => \$w->{'Configure'}{'-hostlabel'},
+		    -underline => 0,
 		     -command => [ 'host', $w ],
 		    -state => ($havenet?'normal':'disabled')
     );
+    $w -> bind( '<Alt-h>', [$w => 'host', $w]);
     $b->pack(-side => 'top', -fill => 'x', -expand => 1);
     $b = $f->Button('-textvariable' => \$w->{'Configure'}{'-cancellabel'},
+		    -underline => 0,
 		     -command => [ 'Cancel', $w ],
     );
+    $w -> bind( '<Alt-c>', [$w => 'Cancel', $w]);
     $b->pack(-side => 'top', -fill => 'x', -expand => 1);
     $b = $f->Button('-textvariable'  => \$w->{'Configure'}{'-resetlabel'},
+		    -underline => 0,
 		     -command => [$w => 'configure','-directory','.'],
     );
+    $w -> bind( '<Alt-r>', [$w => 'configure','-directory','.']);
     $b->pack(-side => 'top', -fill => 'x', -expand => 1);
     $b = $f->Button('-textvariable'  => \$w->{'Configure'}{'-homelabel'},
+		    -underline => 2,
                      -command => [$w => 'configure','-directory',$ENV{'HOME'}],
     );
+    $w -> bind( '<Alt-m>', [$w => 'configure','-directory',$ENV{'HOME'}]);
     $b->pack(-side => 'top', -fill => 'x', -expand => 1);
 
     # Create file scrollbox, place at the right-middle.
@@ -396,7 +420,8 @@ sub Populate {
         -height           => [ ['file_list','dir_list'], undef, undef, 14 ],
         -directory        => [ 'METHOD', undef, undef, '.' ],
         -initialdir       => '-directory',
-        -filelabel        => [ 'PASSIVE', 'fileLabel', 'FileLabel', 'File' ],
+        -filelabel        => [ 'PASSIVE', 'fileLabel', 'FileLabel', 
+			       'File Name:' ],
         -initialfile      => [ 'PASSIVE', undef, undef, '' ],
         -filelistlabel    => [ 'PASSIVE', undef, undef, 'Files' ],
         -filter           => [ 'METHOD',  undef, undef, undef ],
@@ -409,7 +434,7 @@ sub Populate {
         -defaultextension => [ 'METHOD',  undef, undef, undef ],
         -regexp           => [ 'METHOD', undef, undef, undef ],
         -dirlistlabel     => [ 'PASSIVE', undef, undef, 'Directories'],
-        -dirlabel         => [ 'PASSIVE', undef, undef, 'Directory'],
+        -dirlabel         => [ 'PASSIVE', undef, undef, 'Directory:'],
         '-accept'         => [ 'CALLBACK',undef,undef, undef ],
         -command          => [ 'CALLBACK',undef,undef, undef ],
         -transient        => [ 'PASSIVE', undef, undef, 1 ],
