@@ -1,5 +1,5 @@
 package Tk::RemoteFileSelect;
-my $RCSRevKey = '$Revision: 0.53 $';
+my $RCSRevKey = '$Revision: 0.54 $';
 $RCSRevKey =~ /Revision: (.*?) /;
 $VERSION=$1;
 use vars qw($VERSION @EXPORT_OK);
@@ -7,7 +7,7 @@ use vars qw($VERSION @EXPORT_OK);
 
 =head1 NAME
 
-  RemoteFileSelect.pm--Browse directories using FTP.
+  RemoteFileSelect.pm--Browse directories with FTP.
 
 =head1 SYNOPSIS 
 
@@ -47,7 +47,7 @@ use vars qw($VERSION @EXPORT_OK);
 
   First development version.
 
-  $Revision: 0.53 $
+  $Revision: 0.54 $
 
 =cut
 
@@ -245,13 +245,13 @@ sub Accept {
       my $command = $cw->cget('-command');
       $command->Call(@{$cw->{Selected}}) if defined $command;
     }
-
 } # end Accept
 
 sub Accept_dir
 {
  my ($cw,$new) = @_;
  my $dir  = $cw->cget('-directory');
+ $cw -> SelectionClear;
  $cw->configure(-directory => "$dir/$new");
 }
 
@@ -312,6 +312,7 @@ sub Populate {
     $b = $f->Button('-textvariable' => \$w->{'Configure'}{'-acceptlabel'},
 		     -command => [ 'Accept', $w ],
     );
+
     $b->pack(-side => 'top', -fill => 'x', -expand => 1);
     $b = $f->Button('-textvariable' => \$w->{'Configure'}{'-hostlabel'},
 		     -command => [ 'host', $w ],
@@ -801,5 +802,4 @@ sub requirecond {
 
 __END__
 
-=cut
 
