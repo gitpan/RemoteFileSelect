@@ -1,5 +1,5 @@
 package Tk::RemoteFileSelect;
-my $RCSRevKey = '$Revision: 0.52 $';
+my $RCSRevKey = '$Revision: 0.53 $';
 $RCSRevKey =~ /Revision: (.*?) /;
 $VERSION=$1;
 use vars qw($VERSION @EXPORT_OK);
@@ -7,7 +7,13 @@ use vars qw($VERSION @EXPORT_OK);
 
 =head1 NAME
 
-  RemoteFileSelect.pm--A FileSelect with FTP.
+  RemoteFileSelect.pm--Browse directories using FTP.
+
+=head1 SYNOPSIS 
+
+  require Tk::RemoteFileSelect;
+
+  my $file = $mw -> Tk::RemoteFileSelect( -directory => '.' );
 
 =head1 DESCRIPTION
 
@@ -16,14 +22,32 @@ use vars qw($VERSION @EXPORT_OK);
   widget, where you can enter the host name, and your user
   id and password, and select files on the remote host.
 
-  For other details, please refer to the FileSelect.pm
-  POD documentation.
+  If a file name is selected on the local host, then 
+  the RemoteFileSelect widget returns the path to the 
+  file name, the same as a standard FileSelect widget.
+
+  If a file is selected on a remote host, then the 
+  RemoteFileSelect widget returns the name in the form:
+
+  host:/full-pathname-of-file
+
+  RemoteFileSelect requires the Net::FTP module to be 
+  installed.  If it cannot find and load Net::FTP, the
+  RemoteFileSelect widget behaves like a standard 
+  FileSelect widget, and the "Host" button is grayed out.
+
+  RemoteFileSelect.pm was developed with the Net::FTP
+  module distributed with libnet-1.0703, from 
+  http://www.cpan.org/.
+
+  All other operations function as in a FileSelect widget.
+  Please refer to the FileSelect.pm POD documentation.
 
 =head1 VERSION INFO
 
   First development version.
 
-  $Revision: 0.52 $
+  $Revision: 0.53 $
 
 =cut
 
@@ -69,8 +93,6 @@ use vars qw(%error_text);
 	'-C' => 'has no inode change date/time',
     );
 
-# Documentation after __END__
-
 sub import {
     if (defined $_[1] and $_[1] eq 'as_default') {
 	local $^W = 0;
@@ -88,7 +110,6 @@ sub Cancel
  if( $hostname ne '' ) {
    my $ftp = $cw -> cget( -ftp );
    $ftp -> quit;
-#   $cw -> configure( -hostname => '' );
    $cw -> configure( -ftp => undef,
 		     -connected => '' );
  }
@@ -112,10 +133,11 @@ sub host {
 				  $cw -> cget( -userid ),
 				  $cw -> cget( -password ),
 				  $transcript );
+
     if( defined $ftp ) {
       my $dir = $ftp -> pwd();
       $cw -> remoteDirectory( $dir );
-    }
+    } 
 }
 
 sub remoteLogin {
@@ -137,6 +159,12 @@ sub remoteLogin {
   if( $ftp -> login( $userid, $password ) ) {
     $cw -> configure( -ftp => $ftp,
 		      -connected => '1');
+  } else {
+    my $edlg = $cw -> Subwidget( 'errormessage' );
+    $edlg -> configure( -text => "Error: Could not login to $hostid\." );
+    $edlg -> Show;
+    $cw -> configure( -ftp => $ftp,
+		      -connected => '');
   }
   return $ftp;
 }
@@ -144,7 +172,6 @@ sub remoteLogin {
 sub Accept {
 
     # Accept the file or directory name if possible.
-
     my ($cw) = @_;
 
     my($path, $so) = ($cw->cget('-directory'), $cw->SelectionOwner);
@@ -273,6 +300,8 @@ sub Populate {
         -labelVariable => \$w->{Configure}{-dirlistlabel},
         -scrollbars    => 'se',
     );
+    $b -> Subwidget('yscrollbar') -> configure(-width=>10);
+    $b -> Subwidget('xscrollbar') -> configure(-width=>10);
     $b->pack(-side => 'left', -expand => 1, -fill => 'both');
     $b->bind('<Double-Button-1>' => [$w => 'Accept_dir', Ev(['getSelected'])]);
 
@@ -307,8 +336,10 @@ sub Populate {
     $b = $w->Component(
         ScrlListbox    => 'file_list',
         -labelVariable => \$w->{Configure}{-filelistlabel},
-        -scrollbars    => 'se',
+        -scrollbars    => 'se'
     );
+    $b -> Subwidget('yscrollbar') -> configure(-width=>10);
+    $b -> Subwidget('xscrollbar') -> configure(-width=>10);
     $b->pack(-side => 'right', -expand => 1, -fill => 'both');
     $b->bind('<Double-1>' => [$w => 'Accept']);
 
@@ -350,7 +381,8 @@ sub Populate {
 		      -labelVariable => \$w -> {'Configure'}{'-uidlabel'} )
       -> pack( -anchor => 'w', -expand => '1', -fill => 'x' );
     $l -> Component( LabEntry => 'pwdentry', 
-		     -labelVariable => \$w -> {'Configure'}{'-pwdlabel'} )
+		     -labelVariable => \$w -> {'Configure'}{'-pwdlabel'},
+		     -show => '*' )
       -> pack( -anchor => 'w', -expand => '1', -fill => 'x' );
 
     my $l = $w -> Component( Dialog => 'errormessage',
@@ -429,7 +461,11 @@ sub filter
    unless ($cw->{'reread'}++)
     {
      $cw->Busy;
-     $cw->afterIdle(['reread',$cw,$cw->cget('-directory')])
+     if( ( $cw -> cget( '-connected' ) ) =~ /1/ ) {
+       $cw->afterIdle(['rereadRemote',$cw,$cw->cget('-directory')])
+     } else {
+       $cw->afterIdle(['reread',$cw,$cw->cget('-directory')])
+     }
     }
   }
  return $$var;
@@ -495,7 +531,10 @@ sub remoteDirectory {
 sub directory
 {
  my ($cw,$dir) = @_;
- return $cw -> remoteDirectory( $dir ) if $cw -> cget( -connected );
+ if( ( $cw -> cget( '-connected' ) ) =~ /1/ ) {
+   $cw -> remoteDirectory( $dir );
+   return $dir;
+ }
  my $var = \$cw->{Configure}{'-directory'};
  if (@_ > 1 && defined $dir)
   {
@@ -550,12 +589,13 @@ sub rereadRemote {
   my $w = shift;
   if( ( $w -> cget( -connected ) ) eq '1' ) {
      $w -> Busy;
-     my $name;
+     my ($name, $filter);
      my $dl = $w->Subwidget('dir_list');
      $dl->delete(0, 'end');
      my $fl = $w->Subwidget('file_list');
      $fl->delete(0, 'end');
      my $ftp = $w -> cget( -ftp );
+     my $dir = $ftp -> pwd;
      my @files = $ftp -> dir;
      $dl -> insert( 'end', '..' );
      foreach my $f ( @files ) {
@@ -572,8 +612,10 @@ sub rereadRemote {
 	 $fl -> insert( 'end', $name );
        }
      }
+     my $host = $w -> cget( '-hostname' );
+     $w -> {DirectoryString} = "$host\:$dir" . '/' . $w -> cget( '-filter' );
+     $w -> Unbusy;
    }
-  $w -> Unbusy;
 }
 
 sub reread
@@ -593,7 +635,7 @@ sub reread
    local *DIR;
    my $h;
    if( ( $w -> cget( -connected ) ) eq '1' ) {
-     return $w -> rereadRemote; 
+     return $w -> rereadRemote( $dir ); 
    } else {  # ! $w -> connected
      if (opendir(DIR, $dir)) 
        {
@@ -641,6 +683,9 @@ sub reread
 sub validateDir
 {
  my ($cw,$name) = @_;
+ if( ( $cw -> cget( '-connected' ) ) =~ /1/ ) {
+   $name =~ s/^.*\://;
+ }
  my ($leaf,$base) = fileparse($name);
  if ($leaf =~ /[*?]/)
   {
