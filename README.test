@@ -1,0 +1,18 @@
+This is the first development version of Tk::RemoteFileSelect.pm,
+Revision 0.52.
+
+There's no installation program as yet; simply copy it 
+into a local Tk/ subdirectory along the Perl @INC path,
+and replace instances of 'FileSelect' with 'RemoteFileSelect.'
+
+This module has been tested with Net::FTP from the libnet-1.703
+distribution.  The RemoteFileSelect widget (as well as the calling
+program!) must be able to load Net::FTP for remote file selection
+to work.
+
+Tk::RemoteFileSelect.pm is licensed under the same terms as Perl.
+Please refer to the file "Artistic" in this archive.
+
+Please direct all comments to the author, rkiesling@mainmatter.com.
+
+11/12/2000
